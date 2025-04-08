@@ -25,3 +25,5 @@ export const cpfCnpjMask = (value) => {
 export const removeMaks = (cpf) => {
   return cpf.replace(/\D/g, '');
 };
+  
+  // Outras funções de máscara podem ser adicionadas aqui

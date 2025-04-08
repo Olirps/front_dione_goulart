@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { getVeiculos, addVeiculos, updateVeiculos, getVeiculosById, getMarcas } from '../services/api';
-import { formatPlaca } from '../utils/functions' ;
+import { formatPlaca } from '../utils/functions';
 
 import '../styles/Veiculos.css';
 import Modal from '../components/ModalCadastroCarro';
 import Toast from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../utils/hasPermission'; // Certifique-se de importar corretamente a função
 
 
 function Veiculos() {
@@ -21,6 +23,8 @@ function Veiculos() {
   const [isEdit, setIsEdit] = useState(false);
   const [marcas, setMarcas] = useState([]);
   const [marcaId, setMarcaId] = useState('');
+  const { permissions } = useAuth();
+
 
   useEffect(() => {
     const fetchCarros = async () => {
@@ -41,6 +45,7 @@ function Veiculos() {
         setMarcas(response.data);
       } catch (err) {
         console.error('Erro ao buscar marcas', err);
+        setToast({ message: 'Erro ao buscar Marcas', type: "error" });
       }
     };
 
@@ -74,15 +79,28 @@ function Veiculos() {
     setCurrentPage(1); // Resetar para a primeira página ao alterar o número de linhas
   };
 
+  const handleCadastrarModal = () => {
+    if (!hasPermission(permissions, 'veiculos', 'insert')) {
+      setToast({ message: "Você não tem permissão para cadastrar veiculos.", type: "error" });
+      return; // Impede a abertura do modal
+    }
+    setIsModalOpen(true);
+    setIsEdit(false);
+    setSelectedCarro(null);
+  };
+
   const handleAddCarro = async (e) => {
     e.preventDefault();
+
     const formData = new FormData(e.target);
+    const tipoveiculoId = Number(formData.get('tipoVeiculoId'));
+
     const newCarro = {
       modelo: formData.get('modelo'),
       placa: formData.get('placa'),
       quilometragem: formData.get('quilometragem'),
       marcaId: formData.get('marcaId'),
-      tipoveiculoId: formData.get('tipoVeiculoId'),
+      tipoveiculoId: tipoveiculoId,
     };
 
     try {
@@ -100,6 +118,10 @@ function Veiculos() {
 
   const handleEditClick = async (carro) => {
     try {
+      if (!hasPermission(permissions, 'veiculos', 'viewcadastro')) {
+        setToast({ message: "Você não tem permissão para visualizar o cadastro de veículos.", type: "error" });
+        return; // Impede a abertura do modal
+      }
       const response = await getVeiculosById(carro.id);
       setSelectedCarro(response.data);
       setIsEdit(true);
@@ -113,12 +135,13 @@ function Veiculos() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const tipoveiculoId = Number(formData.get('tipoVeiculoId'));
     const updatedCarro = {
       modelo: formData.get('modelo'),
       placa: formData.get('placa'),
       quilometragem: formData.get('quilometragem'),
       marcaId: formData.get('marcaId'),
-      tipoveiculoId: formData.get('tipoVeiculoId')
+      tipoveiculoId: tipoveiculoId
     };
 
     try {
@@ -172,7 +195,7 @@ function Veiculos() {
               <div>
                 <label htmlFor="modelo">Modelo</label>
                 <input
-                className='input-geral'
+                  className='input-geral'
                   type="text"
                   id="modelo"
                   value={modelo}
@@ -183,7 +206,7 @@ function Veiculos() {
               <div>
                 <label htmlFor="placa">Placa</label>
                 <input
-                className='input-geral'
+                  className='input-geral'
                   type="text"
                   id="placa"
                   value={formatPlaca(placa)}
@@ -213,9 +236,7 @@ function Veiculos() {
                 <button onClick={handleSearch} className="button">Pesquisar</button>
                 <button onClick={handleClear} className="button">Limpar</button>
                 <button onClick={() => {
-                  setIsModalOpen(true);
-                  setIsEdit(false);
-                  setSelectedCarro(null);
+                  handleCadastrarModal();
                 }} className="button">Cadastrar</button>
               </div>
             </div>
@@ -243,7 +264,7 @@ function Veiculos() {
                       <tr key={carro.id}>
                         <td>{carro.id}</td>
                         <td>{carro.modelo}</td>
-                        <td>{carro.placa}</td>
+                        <td>{formatPlaca(carro.placa)}</td>
                         <td>{carro.quilometragem}</td>
                         <td>{marca?.nome || 'Desconhecida'}</td>
                         <td>
@@ -251,7 +272,7 @@ function Veiculos() {
                             onClick={() => handleEditClick(carro)}
                             className="edit-button"
                           >
-                            Editar
+                            Visualizar
                           </button>
                         </td>
                       </tr>

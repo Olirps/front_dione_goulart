@@ -3,8 +3,9 @@ import '../styles/ModalProdutosNF.css';
 import ModalTratarProdutosNF from '../components/ModalTratarProdutosNF';
 import ModalDetalhesProdutosNF from '../components/ModalDetalhesProdutosNF';
 import Toast from '../components/Toast';
-import { getNFeById, getProdutoNFById, getQuantidadeRestanteProdutoNF, updateNFe, vinculaProdutoNF, desvinculaProdutoNF,obterVinculoPorProdutoId } from '../services/api';
+import { getNFeById, getProdutoNFById, getQuantidadeRestanteProdutoNF, updateNFe, vinculaProdutoNF, desvinculaProdutoNF, obterVinculoPorProdutoId } from '../services/api';
 import ModalCadastraProduto from '../components/ModalCadastraProduto';
+import {formatarMoedaBRL,converterMoedaParaNumero } from '../utils/functions';
 import lixeiraIcon from '../img/lixeira.png';
 import ConfirmDialog from '../components/ConfirmDialog'; // Importe o ConfirmDialog
 import ModalPesquisaGN from '../components/ModalPesquisaGN';
@@ -12,7 +13,7 @@ import ModalVinculaProdVeiculo from '../components/ModalVinculaProdVeiculo'; // 
 
 
 
-const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
+const ModalProdutosNF = ({ isOpen, onClose, prod, onNFOpen,onVinculoSuccess }) => {
   const [produtos, setProdutos] = useState([]);
   const [quantidade, setQuantidade] = useState('');
   const [quantidadeVinculada, setQuantidadeVinculada] = useState('');
@@ -41,6 +42,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
 
   const [isVinculaVeiculoModalOpen, setIsVinculaVeiculoModalOpen] = useState(false);
   const [produtoParaVincular, setProdutoParaVincular] = useState(null);
+  const [mensagem, setMensagem] = useState('');
 
 
 
@@ -57,9 +59,9 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
   // Função para buscar produtos da nota fiscal
   const handleValorUnitChange = (e) => {
     //setQuantidade(e.target.value); // Atualiza o estado do nome
-    const value = e.target.value;
+    const value = formatarMoedaBRL(e.target.value);
     setValorUnitario(value);
-    if (!value || isNaN(value) || value <= 0) {
+    if (!converterMoedaParaNumero(value) || isNaN(converterMoedaParaNumero(value)) || converterMoedaParaNumero(value) <= 0) {
       setFormError(true);
     } else {
       setFormError(false);
@@ -68,6 +70,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
   // Função para buscar produtos da nota fiscal
   const fetchProdutosNF = async (notaId) => {
     try {
+      onNFOpen=true;
       const response = await getProdutoNFById(notaId);
       setProdutos(response.data);
       setLoading(false);
@@ -122,7 +125,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
       cEAN: e.cEAN,
       qtdMinima: e.qtdMinima,
       qCom: e.qCom,
-      valor_unit: e.valor_unit,
+      valor_unit: converterMoedaParaNumero(e.valor_unit),
       tipoProduto: e.tipo
     };
 
@@ -199,6 +202,8 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
 
   const handleExcluirProdNf = (produto) => {
     setProdutoToDelete(produto);
+    setMensagem("Deseja excluir o Produto da Nota Fiscal?");
+
     setIsConfirmDialogOpen(true);
   };
 
@@ -206,12 +211,12 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
     try {
       if (produtoToDelete) {
         // Atualize o status do produto para 'desabilitado' ou 'inativo' (exemplo: status: false)
-        const retornaVinculo = await obterVinculoPorProdutoId(produtoToDelete.id,produtoToDelete.nota_id)
-        if(retornaVinculo.data.length >0){
-            setToast({ message: 'Não é possível excluir o produto pois ele possui vínculos.', type: 'error' });
-            setIsConfirmDialogOpen(false);
-            setProdutoToDelete(null);
-            return;
+        const retornaVinculo = await obterVinculoPorProdutoId(produtoToDelete.id, produtoToDelete.nota_id)
+        if (retornaVinculo.data.length > 0) {
+          setToast({ message: 'Não é possível excluir o produto pois ele possui vínculos.', type: 'error' });
+          setIsConfirmDialogOpen(false);
+          setProdutoToDelete(null);
+          return;
         }
         const updateData = { nota_id: prod.id, status: 1, id: produtoToDelete.idx }; // ou 'false', dependendo de como está modelado no backend
         await desvinculaProdutoNF(produtoToDelete.id, updateData);
@@ -275,7 +280,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
       produto_id: produtoId,
       tipo_movimentacao,
       quantidade: quantidade,
-      valor_unit: valor_unit
+      valor_unit: converterMoedaParaNumero(valor_unit)
     };
     try {
       const vinculado = await vinculaProdutoNF(produtoId, produtoVinculado);
@@ -317,9 +322,10 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
             {canCadastrarProdutos && !isNFClosed && (
               <div id='cadastro-padrão'>
                 <div id='button-group'>
+                  <label>Não achou o produto?</label>
                   <button className='button' onClick={() => handleCadastraProdClick(prod)}>Cadastrar Produtos</button>
                   {hasProdutos && !isNFClosed && (
-                    <button className='button' onClick={() => handleFecharNF(prod)} disabled={isNFClosed}>
+                    <button className='button-excluir' onClick={() => handleFecharNF(prod)} disabled={isNFClosed}>
                       Fechar NF
                     </button>
                   )}
@@ -354,7 +360,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
                     className='input-geral'
                     id='valor_unit'
                     type="text"
-                    value={valor_unit.replace(',', '.')}
+                    value={valor_unit}
                     onChange={handleValorUnitChange}
                     placeholder='Valor Unitário'
                     required
@@ -427,7 +433,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
                                     className="lixeira-icon"
                                     onClick={() => handleExcluirProdNf(produto)}
                                     style={{ cursor: 'pointer', width: '20px', height: '20px' }}
-                                    />
+                                  />
                                 )}
                               </div>
                             </td>
@@ -489,7 +495,8 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
       {/* Modal de confirmação */}
       {isConfirmDialogOpen && (
         <ConfirmDialog
-          message="Você tem certeza que deseja excluir este produto?"
+          isOpen={isConfirmDialogOpen}
+          message={mensagem}
           onConfirm={confirmDelete}
           onCancel={cancelDelete}
         />
@@ -505,6 +512,7 @@ const ModalProdutosNF = ({ isOpen, onClose, prod, onVinculoSuccess }) => {
         <ModalVinculaProdVeiculo
           isOpen={isVinculaVeiculoModalOpen}
           onClose={closeVinculaVeiculoModal}
+          onNFOpen={true}
           produto={produtoParaVincular}
           quantidadeRestante={quantidadeVinculada}
           onVinculoSuccess={handleVinculoSuccess} // Atualiza lista de produtos ao sucesso
